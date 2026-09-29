@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
-import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -318,14 +317,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
 
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                    val urlString = request.url.toString()
-                    if (urlString.contains("googletagmanager")) {
-                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                    }
-                    if (urlString.contains("img.novu.my")) {
-                        return WebResourceResponse("image/gif", null, 200, "OK", CORS_HEADERS, ByteArrayInputStream(TRANSPARENT_GIF))
-                    }
-                    return super.shouldInterceptRequest(view, request)
+                    return RequestBlocker.intercept(request) ?: super.shouldInterceptRequest(view, request)
                 }
 
                 override fun onPageFinished(view: WebView, url: String) {
@@ -428,38 +420,10 @@ class KomikActivity : AppCompatActivity(), PopupHost {
         private val activityRef = WeakReference(activity)
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            RequestBlocker.intercept(request)?.let { return it }
+
             val urlString = request.url.toString()
             val extension = activityRef.get()?.webExtension ?: return null
-
-            // 1. API Iklan -> Return JSON {} + CORS Header
-            if (urlString.contains("ads.shinigami.io")) {
-                return WebResourceResponse(
-                    "application/json",
-                    "utf-8",
-                    200,
-                    "OK",
-                    CORS_HEADERS,
-                    ByteArrayInputStream("{}".toByteArray())
-                )
-            }
-
-            // 2. Google Tag Manager -> Return text/plain kosong dengan Stream baru
-            if (urlString.contains("googletagmanager")) {
-                return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-            }
-
-            // 3. Gambar Iklan Slot (img.novu.my)
-            // Catatan Penting: Encoding WAJIB null untuk binary/gambar (bukan "utf-8")
-            if (urlString.contains("img.novu.my")) {
-                return WebResourceResponse(
-                    "image/gif",
-                    null, // Must be null for binary data
-                    200,
-                    "OK",
-                    CORS_HEADERS,
-                    ByteArrayInputStream(TRANSPARENT_GIF)
-                )
-            }
 
             return if (extension.shouldIntercept(urlString, request)) {
                 extension.intercept(request)
@@ -504,13 +468,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
         private val activityRef = WeakReference(activity)
 
         override fun onProgressChanged(view: WebView, newProgress: Int) {
-            val activity = activityRef.get() ?: return
-            activity.viewModel.updateLoadingProgress(newProgress)
-
-            // Paksa matikan SwipeRefreshLayout jika progress sudah 80% ke atas
-            if (newProgress >= 80) {
-                activity.binding.swipeRefreshLayout.isRefreshing = false
-            }
+            activityRef.get()?.viewModel?.updateLoadingProgress(newProgress)
         }
 
         override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
@@ -571,16 +529,8 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 activity.configureWebSettings(this)
                 webViewClient = object : WebViewClient() {
                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                        val urlString = request.url.toString()
-                        if (urlString.contains("googletagmanager")) {
-                            return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                        }
-                        if (urlString.contains("img.novu.my")) {
-                            return WebResourceResponse("image/gif", null, 200, "OK", CORS_HEADERS, ByteArrayInputStream(TRANSPARENT_GIF))
-                        }
-                        return super.shouldInterceptRequest(view, request)
+                        return RequestBlocker.intercept(request) ?: super.shouldInterceptRequest(view, request)
                     }
-
                     override fun onPageFinished(view: WebView, url: String) {
                         activity.injectErudaConsole(view)
                     }
@@ -607,16 +557,6 @@ class KomikActivity : AppCompatActivity(), PopupHost {
     companion object {
         private const val TAG = "KomikActivity"
         private const val PREF_WELCOME_SHOWN = "welcome_dialog_displayed"
-
-        private val CORS_HEADERS = mapOf(
-            "Access-Control-Allow-Origin" to "*",
-            "Access-Control-Allow-Methods" to "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers" to "*"
-        )
-
-        private val TRANSPARENT_GIF: ByteArray by lazy {
-            Base64.decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", Base64.DEFAULT)
-        }
 
         private val JAVASCRIPT_IMAGE_DETECTOR = """
             (function(x, y) {
@@ -648,5 +588,71 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 return null;
             })(%d, %d);
         """.trimIndent().replace("\n", "").replace(Regex("\\s+"), " ")
+    }
+}
+
+/**
+ * Pemblokir request terpusat untuk semua WebView (utama & popup).
+ * Setiap response dibuat baru (stream tidak dipakai ulang) dengan status 200,
+ * MIME type yang sesuai, dan header CORS agar tidak memicu error di halaman.
+ */
+private object RequestBlocker {
+
+    private const val ADS_SHINIGAMI = "ads.shinigami"
+    private const val GTM_HOST_KEYWORD = "googletagmanager"
+    // Banner judol: blok domain ini beserta semua subdomainnya.
+    private val BLOCKED_IMAGE_DOMAINS = setOf("novu.my")
+
+    // GIF 1x1 transparan agar <img> tidak menampilkan ikon gambar rusak.
+    private val TRANSPARENT_GIF: ByteArray = android.util.Base64.decode(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        android.util.Base64.DEFAULT
+    )
+
+    // Stub agar script situs yang memanggil gtag()/dataLayer tidak error.
+    private const val GTM_JS_STUB =
+        "window.dataLayer=window.dataLayer||[];" +
+            "window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};"
+
+    fun intercept(request: WebResourceRequest): WebResourceResponse? {
+        val uri = request.url
+        val url = uri.toString().lowercase(Locale.ROOT)
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+
+        return when {
+            url.contains(ADS_SHINIGAMI) -> response("application/json", "{}")
+            host.contains(GTM_HOST_KEYWORD) -> googleTagManager(uri)
+            BLOCKED_IMAGE_DOMAINS.any { host == it || host.endsWith(".$it") } -> transparentImage()
+            else -> null
+        }
+    }
+
+    private fun googleTagManager(uri: Uri): WebResourceResponse {
+        val path = uri.path?.lowercase(Locale.ROOT).orEmpty()
+        return when {
+            path.endsWith(".js") || path.contains("/gtm") || path.contains("/gtag") ->
+                response("application/javascript", GTM_JS_STUB)
+            path.endsWith(".html") -> response("text/html", "")
+            else -> response("text/plain", "")
+        }
+    }
+
+    private fun transparentImage(): WebResourceResponse = build("image/gif", TRANSPARENT_GIF)
+
+    private fun response(mimeType: String, body: String): WebResourceResponse =
+        build(mimeType, body.toByteArray(Charsets.UTF_8))
+
+    private fun build(mimeType: String, body: ByteArray): WebResourceResponse {
+        return WebResourceResponse(
+            mimeType,
+            "utf-8",
+            200,
+            "OK",
+            mapOf(
+                "Access-Control-Allow-Origin" to "*",
+                "Cache-Control" to "no-store"
+            ),
+            ByteArrayInputStream(body)
+        )
     }
 }
