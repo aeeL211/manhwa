@@ -61,6 +61,12 @@ class KomikActivity : AppCompatActivity(), PopupHost {
     private var lastBackPressedTime = 0L
     private var touchXCoordinate = 0
     private var touchYCoordinate = 0
+private val CORS_HEADERS = mapOf(
+    "Access-Control-Allow-Origin" to "*",
+    "Access-Control-Allow-Methods" to "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers" to "*"
+)
+
 
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = fileUploadCallback ?: return@registerForActivityResult
@@ -426,12 +432,19 @@ override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest):
     val urlString = request.url.toString()
     val extension = activityRef.get()?.webExtension ?: return null
 
-    // API Iklan -> Balikin JSON kosong biar fetch().json() ga error
+    // API Iklan Shinigami -> JSON {} dengan Header CORS
     if (urlString.contains("ads.shinigami.io")) {
-        return WebResourceResponse("application/json", "utf-8", ByteArrayInputStream("{}".toByteArray()))
+        return WebResourceResponse(
+            "application/json",
+            "utf-8",
+            200,
+            "OK",
+            CORS_HEADERS,
+            ByteArrayInputStream("{}".toByteArray())
+        )
     }
 
-    // Google Tag Manager & Gambar -> Balikin text/plain kosong kaya awal
+    // Google Tag Manager & Gambar Novu
     if (urlString.contains("googletagmanager") || urlString.contains("img.novu.my")) {
         return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
     }
