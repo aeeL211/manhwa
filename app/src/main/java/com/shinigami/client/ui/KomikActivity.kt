@@ -318,8 +318,12 @@ class KomikActivity : AppCompatActivity(), PopupHost {
 
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                    if (request.url.toString().contains("googletagmanager")) {
+                    val urlString = request.url.toString()
+                    if (urlString.contains("googletagmanager")) {
                         return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                    }
+                    if (urlString.contains("img.novu.my")) {
+                        return WebResourceResponse("image/gif", null, 200, "OK", CORS_HEADERS, ByteArrayInputStream(TRANSPARENT_GIF))
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
@@ -427,7 +431,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
             val urlString = request.url.toString()
             val extension = activityRef.get()?.webExtension ?: return null
 
-            // 1. API Iklan -> JSON {} dengan Header CORS agar JS tidak error / status 0
+            // 1. API Iklan -> Return JSON {} + CORS Header
             if (urlString.contains("ads.shinigami.io")) {
                 return WebResourceResponse(
                     "application/json",
@@ -439,16 +443,20 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 )
             }
 
-            // 2. Google Tag Manager -> text/plain kosong
+            // 2. Google Tag Manager -> Return text/plain kosong dengan Stream baru
             if (urlString.contains("googletagmanager")) {
                 return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
             }
 
-            // 3. Gambar Iklan -> GIF transparan 1x1 piksel agar trigger onload JS & loading selesai
+            // 3. Gambar Iklan Slot (img.novu.my)
+            // Catatan Penting: Encoding WAJIB null untuk binary/gambar (bukan "utf-8")
             if (urlString.contains("img.novu.my")) {
                 return WebResourceResponse(
                     "image/gif",
-                    "utf-8",
+                    null, // Must be null for binary data
+                    200,
+                    "OK",
+                    CORS_HEADERS,
                     ByteArrayInputStream(TRANSPARENT_GIF)
                 )
             }
@@ -496,7 +504,13 @@ class KomikActivity : AppCompatActivity(), PopupHost {
         private val activityRef = WeakReference(activity)
 
         override fun onProgressChanged(view: WebView, newProgress: Int) {
-            activityRef.get()?.viewModel?.updateLoadingProgress(newProgress)
+            val activity = activityRef.get() ?: return
+            activity.viewModel.updateLoadingProgress(newProgress)
+
+            // Paksa matikan SwipeRefreshLayout jika progress sudah 80% ke atas
+            if (newProgress >= 80) {
+                activity.binding.swipeRefreshLayout.isRefreshing = false
+            }
         }
 
         override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
@@ -557,11 +571,16 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 activity.configureWebSettings(this)
                 webViewClient = object : WebViewClient() {
                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                        if (request.url.toString().contains("googletagmanager")) {
+                        val urlString = request.url.toString()
+                        if (urlString.contains("googletagmanager")) {
                             return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                        }
+                        if (urlString.contains("img.novu.my")) {
+                            return WebResourceResponse("image/gif", null, 200, "OK", CORS_HEADERS, ByteArrayInputStream(TRANSPARENT_GIF))
                         }
                         return super.shouldInterceptRequest(view, request)
                     }
+
                     override fun onPageFinished(view: WebView, url: String) {
                         activity.injectErudaConsole(view)
                     }
