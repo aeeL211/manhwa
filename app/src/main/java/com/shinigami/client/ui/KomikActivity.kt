@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -318,7 +319,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                     if (request.url.toString().contains("googletagmanager")) {
-                        return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
@@ -426,7 +427,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
             val urlString = request.url.toString()
             val extension = activityRef.get()?.webExtension ?: return null
 
-            // API Iklan Shinigami -> JSON {} dengan Header CORS
+            // 1. API Iklan -> JSON {} dengan Header CORS agar JS tidak error / status 0
             if (urlString.contains("ads.shinigami.io")) {
                 return WebResourceResponse(
                     "application/json",
@@ -438,9 +439,18 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 )
             }
 
-            // Google Tag Manager & Gambar Novu
-            if (urlString.contains("googletagmanager") || urlString.contains("img.novu.my")) {
-                return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+            // 2. Google Tag Manager -> text/plain kosong
+            if (urlString.contains("googletagmanager")) {
+                return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+            }
+
+            // 3. Gambar Iklan -> GIF transparan 1x1 piksel agar trigger onload JS & loading selesai
+            if (urlString.contains("img.novu.my")) {
+                return WebResourceResponse(
+                    "image/gif",
+                    "utf-8",
+                    ByteArrayInputStream(TRANSPARENT_GIF)
+                )
             }
 
             return if (extension.shouldIntercept(urlString, request)) {
@@ -548,7 +558,7 @@ class KomikActivity : AppCompatActivity(), PopupHost {
                 webViewClient = object : WebViewClient() {
                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                         if (request.url.toString().contains("googletagmanager")) {
-                            return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+                            return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                         }
                         return super.shouldInterceptRequest(view, request)
                     }
@@ -579,13 +589,15 @@ class KomikActivity : AppCompatActivity(), PopupHost {
         private const val TAG = "KomikActivity"
         private const val PREF_WELCOME_SHOWN = "welcome_dialog_displayed"
 
-        private val EMPTY_INPUT_STREAM = ByteArrayInputStream(ByteArray(0))
-
         private val CORS_HEADERS = mapOf(
             "Access-Control-Allow-Origin" to "*",
             "Access-Control-Allow-Methods" to "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers" to "*"
         )
+
+        private val TRANSPARENT_GIF: ByteArray by lazy {
+            Base64.decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", Base64.DEFAULT)
+        }
 
         private val JAVASCRIPT_IMAGE_DETECTOR = """
             (function(x, y) {
