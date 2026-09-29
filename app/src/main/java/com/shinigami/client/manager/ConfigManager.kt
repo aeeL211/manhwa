@@ -12,7 +12,7 @@ class ConfigManager(private val prefs: SharedPreferences) {
 
     companion object {
         private const val TAG = "ConfigManager"
-        private const val KEY_URL = "https://raw.githubusercontent.com/aeeL211/manhwa/refs/heads/main/url.txt"
+        private const val KEY_URL = "remote_url"
     }
 
     suspend fun getUrl(): String = withContext(Dispatchers.IO) {
