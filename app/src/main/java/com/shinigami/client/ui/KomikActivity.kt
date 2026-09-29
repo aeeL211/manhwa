@@ -561,8 +561,6 @@ class KomikActivity : AppCompatActivity(), PopupHost {
 
         private val EMPTY_INPUT_STREAM = ByteArrayInputStream(ByteArray(0))
 
-        private const val ADS_JSON = """{"message":"success","data":[{"sections":[]}]}"""
-
         private val ANNOUNCEMENT_ITEM = """{"announcement_id":"$ANNOUNCEMENT_ID","title":"Ads blocking by aeeL","content":"Ads blocking by **aeeL**","thumbnail_image_url":"https://assets.shngm.id/thumbnail/image/72cea7ce-532f-4fea-b83f-80a41ecc340c.jpg","publish_status":1,"created_date":"2025-11-16T05:42:09Z","created_at":"2025-11-16T05:42:09Z","updated_at":"2026-01-09T00:27:11Z"}"""
         private val ANNOUNCEMENT_DETAIL_JSON = """{"retcode":0,"message":"success","data":$ANNOUNCEMENT_ITEM}"""
         private val ANNOUNCEMENT_LIST_JSON = """{"retcode":0,"message":"success","meta":{"page":1,"page_size":10,"total_page":1,"total_record":1},"data":[$ANNOUNCEMENT_ITEM]}"""
@@ -604,7 +602,10 @@ class KomikActivity : AppCompatActivity(), PopupHost {
             val path = url.path.orEmpty()
 
             return when {
-                url.toString().contains("ads.shinigami") -> jsonResponse(request, ADS_JSON)
+                url.toString().contains("ads.shinigami") -> {
+                    val pageId = path.substringAfterLast("/")
+                    jsonResponse(request, """{"message":"success","meta":{"request_id":"","timestamp":0,"process_time":"0ms"},"data":[{"page_id":"$pageId","sections":[{"section_id":1,"section_num":1,"layout":{"rows":1,"columns":1},"type":"fixed","ads":[]}]}]}""")
+                }
                 host == "api.shngm.io" && path.startsWith("/v1/announcement") -> announcementResponse(request, path)
                 host.contains("googletagmanager") -> {
                     val mimeType = if (path.endsWith(".js")) "application/javascript" else "text/plain"
