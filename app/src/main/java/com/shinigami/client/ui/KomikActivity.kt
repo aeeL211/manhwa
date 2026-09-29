@@ -422,20 +422,23 @@ class KomikActivity : AppCompatActivity(), PopupHost {
     private class DefaultWebViewClient(activity: KomikActivity) : WebViewClient() {
         private val activityRef = WeakReference(activity)
 
-        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-            val urlString = request.url.toString()
-            val extension = activityRef.get()?.webExtension ?: return null
+    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+        val urlString = request.url.toString()
+        val extension = activityRef.get()?.webExtension ?: return null
 
-            if (urlString.contains("googletagmanager")) {
-                return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
-            }
-
-            return if (extension.shouldIntercept(urlString, request)) {
-                extension.intercept(request)
-            } else {
-                null
-            }
+        if (urlString.contains("googletagmanager") || 
+            urlString.contains("ads.shinigami.io") || 
+            urlString.contains("img.novu.my")) {
+            return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
         }
+
+        return if (extension.shouldIntercept(urlString, request)) {
+            extension.intercept(request)
+        } else {
+            null
+        }
+    }
+
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val urlString = request.url.toString()
