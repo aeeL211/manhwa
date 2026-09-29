@@ -2,7 +2,7 @@ package com.shinigami.client.util
 
 object AppConfig {
     const val DEBUG = true
-    const val ENABLE_ERUDA = false
+    const val ENABLE_ERUDA = true
 
     const val ENABLE_LOGGER = DEBUG
     const val ENABLE_CRASH_LOG = DEBUG
