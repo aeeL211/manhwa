@@ -61,12 +61,6 @@ class KomikActivity : AppCompatActivity(), PopupHost {
     private var lastBackPressedTime = 0L
     private var touchXCoordinate = 0
     private var touchYCoordinate = 0
-private val CORS_HEADERS = mapOf(
-    "Access-Control-Allow-Origin" to "*",
-    "Access-Control-Allow-Methods" to "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers" to "*"
-)
-
 
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = fileUploadCallback ?: return@registerForActivityResult
@@ -428,34 +422,33 @@ private val CORS_HEADERS = mapOf(
     private class DefaultWebViewClient(activity: KomikActivity) : WebViewClient() {
         private val activityRef = WeakReference(activity)
 
-override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-    val urlString = request.url.toString()
-    val extension = activityRef.get()?.webExtension ?: return null
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val urlString = request.url.toString()
+            val extension = activityRef.get()?.webExtension ?: return null
 
-    // API Iklan Shinigami -> JSON {} dengan Header CORS
-    if (urlString.contains("ads.shinigami.io")) {
-        return WebResourceResponse(
-            "application/json",
-            "utf-8",
-            200,
-            "OK",
-            CORS_HEADERS,
-            ByteArrayInputStream("{}".toByteArray())
-        )
-    }
+            // API Iklan Shinigami -> JSON {} dengan Header CORS
+            if (urlString.contains("ads.shinigami.io")) {
+                return WebResourceResponse(
+                    "application/json",
+                    "utf-8",
+                    200,
+                    "OK",
+                    CORS_HEADERS,
+                    ByteArrayInputStream("{}".toByteArray())
+                )
+            }
 
-    // Google Tag Manager & Gambar Novu
-    if (urlString.contains("googletagmanager") || urlString.contains("img.novu.my")) {
-        return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
-    }
+            // Google Tag Manager & Gambar Novu
+            if (urlString.contains("googletagmanager") || urlString.contains("img.novu.my")) {
+                return WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+            }
 
-    return if (extension.shouldIntercept(urlString, request)) {
-        extension.intercept(request)
-    } else {
-        null
-    }
-}
-
+            return if (extension.shouldIntercept(urlString, request)) {
+                extension.intercept(request)
+            } else {
+                null
+            }
+        }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val urlString = request.url.toString()
@@ -587,6 +580,12 @@ override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest):
         private const val PREF_WELCOME_SHOWN = "welcome_dialog_displayed"
 
         private val EMPTY_INPUT_STREAM = ByteArrayInputStream(ByteArray(0))
+
+        private val CORS_HEADERS = mapOf(
+            "Access-Control-Allow-Origin" to "*",
+            "Access-Control-Allow-Methods" to "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers" to "*"
+        )
 
         private val JAVASCRIPT_IMAGE_DETECTOR = """
             (function(x, y) {
