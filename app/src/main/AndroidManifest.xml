@@ -7,8 +7,11 @@
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
                  android:maxSdkVersion="32" />
 	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" android:required="false" />
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 	<application
+		xmlns:tools="http://schemas.android.com/tools"
+		tools:ignore="NewApi"
 		android:allowBackup="true"
 		android:icon="@mipmap/ic_launcher_adf"
 android:roundIcon="@mipmap/ic_launcher_adf"

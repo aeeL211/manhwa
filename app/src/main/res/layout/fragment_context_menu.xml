@@ -53,7 +53,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_photo_m3"
-        android:tint="@color/img_placeholder_tint"
+        app:tint="@color/img_placeholder_tint"
         android:contentDescription="@null" />
 
     </com.google.android.material.card.MaterialCardView>
