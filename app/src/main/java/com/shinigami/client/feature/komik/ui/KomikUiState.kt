@@ -5,4 +5,5 @@ data class KomikUiState(
     val isLoading: Boolean = true,
     val loadingProgress: Int = 0,
     val isSplashVisible: Boolean = true,
+    val shouldReload: Boolean = false,
 )

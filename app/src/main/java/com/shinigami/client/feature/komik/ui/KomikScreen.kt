@@ -41,6 +41,10 @@ import com.shinigami.client.core.ui.components.ShinigamiInfoDialog
 import com.shinigami.client.core.ui.components.ShinigamiPromptDialog
 import com.shinigami.client.core.ui.theme.DarkBackground
 import com.shinigami.client.core.ui.theme.PrimaryAccent
+import com.shinigami.client.core.ui.theme.SplashGradientBottom
+import com.shinigami.client.core.ui.theme.SplashGradientTop
+import com.shinigami.client.core.ui.theme.SplashProgress
+import com.shinigami.client.core.ui.theme.SplashProgressTrack
 import com.shinigami.client.core.webview.WebExtension
 import java.util.Locale
 
@@ -141,8 +145,13 @@ fun KomikScreen(
                         .filterIsInstance<WebView>()
                         .firstOrNull() ?: mainWebViewState
 
-                    if (webView != null && uiState.url != null && webView.url == null) {
-                        webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
+                    if (webView != null) {
+                        if (uiState.url != null && webView.url == null) {
+                            webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
+                        } else if (uiState.shouldReload) {
+                            viewModel.onReloadHandled()
+                            webView.reload()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -157,7 +166,11 @@ fun KomikScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(DarkBackground),
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(SplashGradientTop, SplashGradientBottom)
+                        )
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -177,8 +190,8 @@ fun KomikScreen(
                             .align(Alignment.BottomCenter)
                             .windowInsetsPadding(WindowInsets.navigationBars)
                             .height(3.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.2f),
+                        color = SplashProgress,
+                        trackColor = SplashProgressTrack,
                         strokeCap = StrokeCap.Butt,
                     )
                 } else {
@@ -188,8 +201,8 @@ fun KomikScreen(
                             .align(Alignment.BottomCenter)
                             .windowInsetsPadding(WindowInsets.navigationBars)
                             .height(3.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.2f),
+                        color = SplashProgress,
+                        trackColor = SplashProgressTrack,
                         strokeCap = StrokeCap.Butt,
                     )
                 }
