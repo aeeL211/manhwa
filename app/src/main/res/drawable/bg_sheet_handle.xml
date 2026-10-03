@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- handle pill: #66FFFFFF + cornerRadius 2dp — sama persis original -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-  android:shape="rectangle">
-  <solid android:color="@color/handle_tint" />
-  <corners android:radius="2dp" />
-</shape>

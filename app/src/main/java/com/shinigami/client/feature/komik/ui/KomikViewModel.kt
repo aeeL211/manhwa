@@ -1,11 +1,11 @@
-package com.shinigami.client.ui
+package com.shinigami.client.feature.komik.ui
 
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.shinigami.client.manager.ConfigManager
-import com.shinigami.client.manager.NetworkManager
+import com.shinigami.client.core.network.NetworkMonitor
+import com.shinigami.client.feature.komik.data.ConfigRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,18 +13,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-data class KomikUiState(
-    val url: String? = null,
-    val isLoading: Boolean = true,
-    val loadingProgress: Int = 0,
-    val isSplashVisible: Boolean = true
-)
-
 class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val networkManager = NetworkManager(application)
-    private val configManager = ConfigManager(
-        application.getSharedPreferences("Shinigami", Context.MODE_PRIVATE)
+    private val networkMonitor = NetworkMonitor(application)
+    private val configRepository = ConfigRepository(
+        application.getSharedPreferences("Shinigami", Context.MODE_PRIVATE),
     )
 
     private val _uiState = MutableStateFlow(KomikUiState())
@@ -38,9 +31,9 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun initializeData() {
         viewModelScope.launch {
-            networkManager.networkStatus.collect { isConnected ->
+            networkMonitor.networkStatus.collect { isConnected ->
                 if (isConnected && _uiState.value.url == null) {
-                    val remoteUrl = configManager.getUrl()
+                    val remoteUrl = configRepository.getUrl()
                     _uiState.update { currentState ->
                         currentState.copy(url = remoteUrl)
                     }
@@ -62,7 +55,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { currentState ->
             currentState.copy(
                 isLoading = false,
-                isSplashVisible = false
+                isSplashVisible = false,
             )
         }
     }

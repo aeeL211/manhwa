@@ -4,8 +4,8 @@ import android.app.Application
 import android.content.Intent
 import android.util.Log
 import com.google.android.material.color.DynamicColors
-import com.shinigami.client.ui.DebugActivity
 import com.shinigami.client.core.util.Logger
+import com.shinigami.client.ui.DebugActivity
 import kotlin.system.exitProcess
 
 class ShinigamiApp : Application() {
