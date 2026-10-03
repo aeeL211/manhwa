@@ -27,6 +27,14 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         initializeData()
+        startSafetyTimeout()
+    }
+
+    private fun startSafetyTimeout() {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(5000L)
+            onPageFinished()
+        }
     }
 
     private fun initializeData() {

@@ -132,7 +132,11 @@ fun KomikScreen(
                 },
                 update = { swipeRefresh ->
                     swipeRefresh.isRefreshing = uiState.isLoading && !uiState.isSplashVisible
-                    val webView = swipeRefresh.getChildAt(0) as? WebView
+                    val webView = (0 until swipeRefresh.childCount)
+                        .map { swipeRefresh.getChildAt(it) }
+                        .filterIsInstance<WebView>()
+                        .firstOrNull() ?: mainWebViewState
+
                     if (webView != null && uiState.url != null && webView.url == null) {
                         webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
                     }
@@ -146,14 +150,10 @@ fun KomikScreen(
             visible = uiState.isSplashVisible,
             exit = fadeOut(animationSpec = tween(durationMillis = 500)),
         ) {
-            val bgColors = listOf(
-                MaterialTheme.colorScheme.background,
-                MaterialTheme.colorScheme.surface,
-            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Brush.verticalGradient(bgColors)),
+                    .background(DarkBackground),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -165,17 +165,30 @@ fun KomikScreen(
                     contentScale = ContentScale.Fit,
                 )
 
-                LinearProgressIndicator(
-                    progress = { uiState.loadingProgress / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(3.dp)
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 48.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainer,
-                    strokeCap = StrokeCap.Round,
-                )
+                if (uiState.loadingProgress > 0) {
+                    LinearProgressIndicator(
+                        progress = { uiState.loadingProgress / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f)
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp)
+                            .height(3.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                        strokeCap = StrokeCap.Round,
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f)
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp)
+                            .height(3.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                        strokeCap = StrokeCap.Round,
+                    )
+                }
             }
         }
 
