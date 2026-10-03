@@ -1,31 +1,36 @@
 package com.shinigami.client.feature.komik.ui
 
+import android.view.ViewGroup
 import android.view.MotionEvent
 import android.webkit.CookieManager
 import android.webkit.WebView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.shinigami.client.R
 import com.shinigami.client.core.ui.components.ContextMenuBottomSheet
 import com.shinigami.client.core.ui.components.ShinigamiConfirmDialog
@@ -61,10 +66,13 @@ fun KomikScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    val imeBottomDp = (activity.imeBottomPadding / context.resources.displayMetrics.density).dp
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground),
+            .background(DarkBackground)
+            .padding(bottom = imeBottomDp),
     ) {
         if (popupWebViewState != null) {
             AndroidView(
@@ -72,79 +80,102 @@ fun KomikScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            PullToRefreshBox(
-                isRefreshing = uiState.isLoading && !uiState.isSplashVisible,
-                onRefresh = {
-                    mainWebViewState?.reload()
+            AndroidView(
+                factory = { ctx ->
+                    val swipeRefresh = SwipeRefreshLayout(ctx)
+                    val webView = WebView(ctx).apply {
+                        activity.configureWebSettings(this)
+
+                        webExtension.setLanguage(Locale.getDefault().toLanguageTag())
+                        webExtension.setUserAgent(settings.userAgentString)
+
+                        CookieManager.getInstance().let { cookieManager ->
+                            cookieManager.setAcceptCookie(true)
+                            cookieManager.setAcceptThirdPartyCookies(this, true)
+                        }
+
+                        webViewClient = KomikActivity.DefaultWebViewClient(activity)
+                        webChromeClient = KomikActivity.DefaultWebChromeClient(activity)
+
+                        setOnTouchListener { _, event ->
+                            if (event.action == MotionEvent.ACTION_DOWN) {
+                                activity.touchXCoordinate = event.x.toInt()
+                                activity.touchYCoordinate = event.y.toInt()
+                            }
+                            false
+                        }
+
+                        setOnLongClickListener {
+                            activity.detectImageElement()
+                            true
+                        }
+
+                        setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                            swipeRefresh.isEnabled = (scrollY == 0)
+                        }
+                    }
+
+                    swipeRefresh.addView(
+                        webView,
+                        ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        ),
+                    )
+
+                    swipeRefresh.setOnRefreshListener {
+                        webView.reload()
+                    }
+
+                    onMainWebViewCreated(webView)
+                    swipeRefresh
+                },
+                update = { swipeRefresh ->
+                    swipeRefresh.isRefreshing = uiState.isLoading && !uiState.isSplashVisible
+                    val webView = swipeRefresh.getChildAt(0) as? WebView
+                    if (webView != null && uiState.url != null && webView.url == null) {
+                        webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
+                    }
                 },
                 modifier = Modifier.fillMaxSize(),
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        val webView = WebView(ctx).apply {
-                            activity.configureWebSettings(this)
-
-                            webExtension.setLanguage(Locale.getDefault().toLanguageTag())
-                            webExtension.setUserAgent(settings.userAgentString)
-
-                            CookieManager.getInstance().let { cookieManager ->
-                                cookieManager.setAcceptCookie(true)
-                                cookieManager.setAcceptThirdPartyCookies(this, true)
-                            }
-
-                            webViewClient = KomikActivity.DefaultWebViewClient(activity)
-                            webChromeClient = KomikActivity.DefaultWebChromeClient(activity)
-
-                            setOnTouchListener { _, event ->
-                                if (event.action == MotionEvent.ACTION_DOWN) {
-                                    activity.touchXCoordinate = event.x.toInt()
-                                    activity.touchYCoordinate = event.y.toInt()
-                                }
-                                false
-                            }
-
-                            setOnLongClickListener {
-                                activity.detectImageElement()
-                                true
-                            }
-                        }
-                        onMainWebViewCreated(webView)
-                        webView
-                    },
-                    update = { webView ->
-                        if (uiState.url != null && webView.url == null) {
-                            webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            )
         }
 
         // Splash screen overlay
-        if (uiState.isSplashVisible) {
+        AnimatedVisibility(
+            visible = uiState.isSplashVisible,
+            exit = fadeOut(animationSpec = tween(durationMillis = 500)),
+        ) {
+            val bgColors = listOf(
+                MaterialTheme.colorScheme.background,
+                MaterialTheme.colorScheme.surface,
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(DarkBackground),
+                    .background(Brush.verticalGradient(bgColors)),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo),
-                        contentDescription = "Logo",
-                        modifier = Modifier.size(160.dp),
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                    LinearProgressIndicator(
-                        progress = { uiState.loadingProgress / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .height(6.dp),
-                        color = PrimaryAccent,
-                        trackColor = Color(0xFF2A2A2A),
-                    )
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth(0.65f)
+                        .aspectRatio(1f),
+                    contentScale = ContentScale.Fit,
+                )
+
+                LinearProgressIndicator(
+                    progress = { uiState.loadingProgress / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(3.dp)
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 48.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                    strokeCap = StrokeCap.Round,
+                )
             }
         }
 

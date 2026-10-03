@@ -58,6 +58,7 @@ class KomikActivity :
     private var lastBackPressedTime = 0L
     var touchXCoordinate = 0
     var touchYCoordinate = 0
+        var imeBottomPadding by mutableStateOf(0)
 
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = fileUploadCallback ?: return@registerForActivityResult
@@ -132,6 +133,11 @@ class KomikActivity :
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { _, insets ->
+            val imeInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())
+            imeBottomPadding = imeInsets.bottom
+            insets
         }
     }
 
