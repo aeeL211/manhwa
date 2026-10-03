@@ -1,4 +1,4 @@
-package com.shinigami.client.util
+package com.shinigami.client.core.util
 
 import android.content.Context
 import android.util.Log

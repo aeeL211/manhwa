@@ -21,7 +21,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.shinigami.client.databinding.FragmentContextMenuBinding
 import com.shinigami.client.extension.WebExtension
-import com.shinigami.client.util.Logger
+import com.shinigami.client.core.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

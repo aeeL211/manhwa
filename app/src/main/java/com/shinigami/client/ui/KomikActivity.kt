@@ -40,8 +40,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.shinigami.client.databinding.ActivityKomikBinding
 import com.shinigami.client.extension.WebExtension
 import com.shinigami.client.manager.DialogManager
-import com.shinigami.client.util.AppConfig
-import com.shinigami.client.util.Logger
+import com.shinigami.client.core.util.AppConfig
+import com.shinigami.client.core.util.Logger
 import kotlinx.coroutines.launch
 import java.io.ByteArrayInputStream
 import java.lang.ref.WeakReference
