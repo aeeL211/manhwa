@@ -81,81 +81,87 @@ fun KomikScreen(
             .background(DarkBackground)
             .padding(bottom = imeBottomDp),
     ) {
-        if (popupWebViewState != null) {
-            AndroidView(
-                factory = { popupWebViewState },
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            AndroidView(
-                factory = { ctx ->
-                    val swipeRefresh = SwipeRefreshLayout(ctx)
-                    val webView = WebView(ctx).apply {
-                        activity.configureWebSettings(this)
+        AndroidView(
+            factory = { ctx ->
+                val swipeRefresh = SwipeRefreshLayout(ctx)
+                val webView = WebView(ctx).apply {
+                    activity.configureWebSettings(this)
 
-                        webExtension.setLanguage(Locale.getDefault().toLanguageTag())
-                        webExtension.setUserAgent(settings.userAgentString)
+                    webExtension.setLanguage(Locale.getDefault().toLanguageTag())
+                    webExtension.setUserAgent(settings.userAgentString)
 
-                        CookieManager.getInstance().let { cookieManager ->
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
-                        }
-
-                        webViewClient = KomikActivity.DefaultWebViewClient(activity)
-                        webChromeClient = KomikActivity.DefaultWebChromeClient(activity)
-
-                        setOnTouchListener { _, event ->
-                            if (event.action == MotionEvent.ACTION_DOWN) {
-                                activity.touchXCoordinate = event.x.toInt()
-                                activity.touchYCoordinate = event.y.toInt()
-                            }
-                            false
-                        }
-
-                        setOnLongClickListener {
-                            activity.detectImageElement()
-                            true
-                        }
-
-                        setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                            swipeRefresh.isEnabled = (scrollY == 0)
-                        }
+                    CookieManager.getInstance().let { cookieManager ->
+                        cookieManager.setAcceptCookie(true)
+                        cookieManager.setAcceptThirdPartyCookies(this, true)
                     }
 
-                    swipeRefresh.addView(
-                        webView,
-                        ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                        ),
-                    )
+                    webViewClient = KomikActivity.DefaultWebViewClient(activity)
+                    webChromeClient = KomikActivity.DefaultWebChromeClient(activity)
 
-                    swipeRefresh.setOnRefreshListener {
-                        webExtension.clearCache()
+                    setOnTouchListener { _, event ->
+                        if (event.action == MotionEvent.ACTION_DOWN) {
+                            activity.touchXCoordinate = event.x.toInt()
+                            activity.touchYCoordinate = event.y.toInt()
+                        }
+                        false
+                    }
+
+                    setOnLongClickListener {
+                        activity.detectImageElement()
+                        true
+                    }
+
+                    setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                        swipeRefresh.isEnabled = (scrollY == 0)
+                    }
+                }
+
+                swipeRefresh.addView(
+                    webView,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+
+                swipeRefresh.setOnRefreshListener {
+                    webExtension.clearCache()
+                    webView.reload()
+                }
+
+                onMainWebViewCreated(webView)
+                swipeRefresh
+            },
+            update = { swipeRefresh ->
+                swipeRefresh.isRefreshing = uiState.isLoading && !uiState.isSplashVisible
+                val webView = (0 until swipeRefresh.childCount)
+                    .map { swipeRefresh.getChildAt(it) }
+                    .filterIsInstance<WebView>()
+                    .firstOrNull() ?: mainWebViewState
+
+                if (webView != null) {
+                    if (uiState.url != null && webView.url == null) {
+                        webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
+                    } else if (uiState.shouldReload) {
+                        viewModel.onReloadHandled()
                         webView.reload()
                     }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
 
-                    onMainWebViewCreated(webView)
-                    swipeRefresh
-                },
-                update = { swipeRefresh ->
-                    swipeRefresh.isRefreshing = uiState.isLoading && !uiState.isSplashVisible
-                    val webView = (0 until swipeRefresh.childCount)
-                        .map { swipeRefresh.getChildAt(it) }
-                        .filterIsInstance<WebView>()
-                        .firstOrNull() ?: mainWebViewState
-
-                    if (webView != null) {
-                        if (uiState.url != null && webView.url == null) {
-                            webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
-                        } else if (uiState.shouldReload) {
-                            viewModel.onReloadHandled()
-                            webView.reload()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+        if (popupWebViewState != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DarkBackground),
+            ) {
+                AndroidView(
+                    factory = { popupWebViewState },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         // Splash screen overlay
