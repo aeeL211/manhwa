@@ -26,11 +26,14 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.shinigami.client.core.ui.theme.ShinigamiTheme
 import com.shinigami.client.core.util.Logger
 import com.shinigami.client.core.webview.ErudaConsole
@@ -106,6 +109,25 @@ class KomikActivity :
 
         setContent {
             ShinigamiTheme {
+                val uiState by viewModel.uiState.collectAsState()
+
+                LaunchedEffect(uiState.isSplashVisible) {
+                    val window = this@KomikActivity.window
+                    val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+
+                    if (uiState.isSplashVisible) {
+                        window.statusBarColor = android.graphics.Color.parseColor("#18181B")
+                        window.navigationBarColor = android.graphics.Color.parseColor("#09090B")
+                        insetsController.isAppearanceLightStatusBars = false
+                        insetsController.isAppearanceLightNavigationBars = false
+                    } else {
+                        window.statusBarColor = android.graphics.Color.TRANSPARENT
+                        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                        insetsController.isAppearanceLightStatusBars = false
+                        insetsController.isAppearanceLightNavigationBars = false
+                    }
+                }
+
                 KomikScreen(
                     viewModel = viewModel,
                     activity = this,
@@ -353,7 +375,9 @@ class KomikActivity :
         override fun onPageFinished(view: WebView, url: String) {
             val activity = activityRef.get() ?: return
             activity.viewModel.onPageFinished()
-            ErudaConsole.inject(view)
+            if (com.shinigami.client.core.util.AppConfig.ENABLE_ERUDA) {
+                ErudaConsole.inject(view)
+            }
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
