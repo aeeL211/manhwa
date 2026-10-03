@@ -2,6 +2,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.spotless)
 }
 
 android {
@@ -47,6 +49,20 @@ android {
   buildFeatures {
     viewBinding = true
     buildConfig = true
+    compose = true
+  }
+}
+
+spotless {
+  kotlin {
+    target("**/*.kt")
+    ktlint("1.5.0")
+      .editorConfigOverride(
+        mapOf(
+          "ktlint_function_naming_ignore_when_annotated_with" to "Composable",
+          "max_line_length" to "off"
+        )
+      )
   }
 }
 
@@ -54,7 +70,10 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.activity.ktx)
+  implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.fragment.ktx)
 
   implementation(libs.kotlinx.coroutines.android)
@@ -65,4 +84,11 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.androidx.constraintlayout)
   implementation(libs.material)
+
+  val composeBom = platform(libs.androidx.compose.bom)
+  implementation(composeBom)
+  implementation(libs.androidx.compose.ui)
+  implementation(libs.androidx.compose.ui.graphics)
+  implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.compose.material3)
 }

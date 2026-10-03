@@ -27,6 +27,7 @@ object Logger {
 
     private var file: File? = null
     private var writer: BufferedWriter? = null
+
     @Volatile private var isReady = false
 
     fun init(context: Context) {
@@ -140,7 +141,9 @@ object Logger {
         val f = file ?: return
         if (f.length() > AppConfig.MAX_LOG_FILE_SIZE) {
             val backup = File(f.parent, "${f.nameWithoutExtension}_${System.currentTimeMillis()}.txt")
-            try { writer?.close() } catch (_: Exception) {}
+            try {
+                writer?.close()
+            } catch (_: Exception) {}
             f.renameTo(backup)
             try {
                 writer = BufferedWriter(FileWriter(f, true))

@@ -38,7 +38,7 @@ android:roundIcon="@mipmap/ic_launcher_adf"
 		</provider>
 
 		<activity
-			android:name=".ui.KomikActivity"
+			android:name=".feature.komik.ui.KomikActivity"
 			android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
 			android:hardwareAccelerated="true"
 			android:supportsPictureInPicture="true"

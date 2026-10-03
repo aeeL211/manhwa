@@ -1,4 +1,4 @@
-package com.shinigami.client.extension
+package com.shinigami.client.core.webview
 
 import android.util.LruCache
 import android.webkit.CookieManager
@@ -29,10 +29,11 @@ class WebExtension {
 
     private val defaultResponseHeaders = mapOf(
         "Access-Control-Allow-Origin" to "*",
-        "Cache-Control" to "max-age=300"
+        "Cache-Control" to "max-age=300",
     )
 
     @Volatile private var languageHeader = "en-US,en;q=0.9"
+
     @Volatile private var userAgentHeader: String? = null
 
     fun setLanguage(language: String) {
@@ -116,7 +117,7 @@ class WebExtension {
                 val cachedResource = CachedResource(
                     data = patchedContent.toByteArray(StandardCharsets.UTF_8),
                     statusCode = response.code,
-                    contentType = contentType
+                    contentType = contentType,
                 )
 
                 memoryCache.put(url, cachedResource)
@@ -149,20 +150,18 @@ class WebExtension {
     private inner class CachedResource(
         val data: ByteArray,
         val statusCode: Int,
-        contentType: String?
+        contentType: String?,
     ) {
         private val mimeType = contentType?.substringBefore(';')?.trim() ?: "text/html"
 
-        fun toWebResourceResponse(): WebResourceResponse {
-            return WebResourceResponse(
-                mimeType,
-                "UTF-8",
-                statusCode,
-                "OK",
-                defaultResponseHeaders,
-                ByteArrayInputStream(data)
-            )
-        }
+        fun toWebResourceResponse(): WebResourceResponse = WebResourceResponse(
+            mimeType,
+            "UTF-8",
+            statusCode,
+            "OK",
+            defaultResponseHeaders,
+            ByteArrayInputStream(data),
+        )
     }
 
     companion object {

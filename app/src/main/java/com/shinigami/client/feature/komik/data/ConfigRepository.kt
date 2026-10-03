@@ -1,17 +1,17 @@
-package com.shinigami.client.manager
+package com.shinigami.client.feature.komik.data
 
 import android.content.SharedPreferences
-import com.shinigami.client.extension.WebExtension
 import com.shinigami.client.core.util.AppConfig
 import com.shinigami.client.core.util.Logger
+import com.shinigami.client.core.webview.WebExtension
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 
-class ConfigManager(private val prefs: SharedPreferences) {
+class ConfigRepository(private val prefs: SharedPreferences) {
 
     companion object {
-        private const val TAG = "ConfigManager"
+        private const val TAG = "ConfigRepository"
         private const val KEY_URL = "remote_url"
     }
 
@@ -39,7 +39,5 @@ class ConfigManager(private val prefs: SharedPreferences) {
         }
     }
 
-    private fun getCachedUrl(): String {
-        return prefs.getString(KEY_URL, AppConfig.BASE_URL) ?: AppConfig.BASE_URL
-    }
+    private fun getCachedUrl(): String = prefs.getString(KEY_URL, AppConfig.BASE_URL) ?: AppConfig.BASE_URL
 }

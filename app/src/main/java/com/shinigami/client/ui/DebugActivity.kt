@@ -70,7 +70,7 @@ class DebugActivity : Activity() {
             "java.lang.ArithmeticException" to "An invalid math operation was performed (e.g., division by zero).",
             "java.lang.NumberFormatException" to "Failed to convert a value to a number.",
             "android.content.ActivityNotFoundException" to "Failed to launch another application or screen.",
-            "java.lang.NullPointerException" to "The application attempted to use an object that was not initialized."
+            "java.lang.NullPointerException" to "The application attempted to use an object that was not initialized.",
         )
     }
 }
