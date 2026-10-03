@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -77,7 +78,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 
-private val ContextMenuAccent = Color(0xFF5B2FC0)
+private val ContextMenuAccent = Color.White
 
 private enum class PreviewState {
     LOADING,
@@ -168,7 +169,8 @@ fun ContextMenuBottomSheet(
                 colors = CardDefaults.cardColors(containerColor = SurfaceContainerDark),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 200.dp)
+                    .aspectRatio(16f / 9f)
+                    .heightIn(max = 220.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -177,9 +179,7 @@ fun ContextMenuBottomSheet(
                     },
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     when (previewState) {
@@ -213,7 +213,7 @@ fun ContextMenuBottomSheet(
                                     bitmap = bitmap.asImageBitmap(),
                                     contentDescription = "Preview",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit,
+                                    contentScale = ContentScale.Crop,
                                 )
                             }
                         }

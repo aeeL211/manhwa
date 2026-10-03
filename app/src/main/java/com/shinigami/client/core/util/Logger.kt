@@ -59,7 +59,6 @@ object Logger {
     private fun startLogConsumer() {
         scope.launch {
             for (msg in logChannel) {
-                if (!isReady) break
                 writeDirectly(msg)
                 writer?.flush()
                 checkLogRotation()
@@ -144,9 +143,11 @@ object Logger {
             try {
                 writer?.close()
             } catch (_: Exception) {}
-            f.renameTo(backup)
+            if (f.renameTo(backup)) {
+                file = File(f.parent, f.name)
+            }
             try {
-                writer = BufferedWriter(FileWriter(f, true))
+                writer = BufferedWriter(FileWriter(file ?: f, true))
                 writeDirectly("=== Rotated from ${backup.name} ===\n")
             } catch (e: Exception) {
                 Log.e(TAG, "Rotation failed", e)

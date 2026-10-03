@@ -152,6 +152,11 @@ class KomikActivity :
         performFirstRunCheck()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        mainWebView?.saveState(outState)
+    }
+
     private fun setupWindowConfiguration() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -322,6 +327,9 @@ class KomikActivity :
     fun dismissPopup() {
         popupWebView?.let { webView ->
             webView.stopLoading()
+            webView.onPause()
+            webView.loadUrl("about:blank")
+            (webView.parent as? ViewGroup)?.removeView(webView)
             webView.destroy()
             popupWebView = null
         }
@@ -357,6 +365,8 @@ class KomikActivity :
     }
 
     override fun onDestroy() {
+        clearFileChooserState()
+
         mainWebView?.let { webView ->
             webView.stopLoading()
             webView.onPause()
@@ -370,13 +380,7 @@ class KomikActivity :
         }
         mainWebView = null
 
-        popupWebView?.let { popupView ->
-            popupView.stopLoading()
-            popupView.onPause()
-            popupView.loadUrl("about:blank")
-            popupView.destroy()
-        }
-        popupWebView = null
+        dismissPopup()
 
         webExtension.destroy()
         super.onDestroy()
