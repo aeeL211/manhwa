@@ -1,4 +1,4 @@
-package com.shinigami.client.util
+package com.shinigami.client.core.util
 
 object AppConfig {
     const val DEBUG = true

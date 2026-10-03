@@ -4,8 +4,8 @@ import android.util.LruCache
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
-import com.shinigami.client.util.AppConfig
-import com.shinigami.client.util.Logger
+import com.shinigami.client.core.util.AppConfig
+import com.shinigami.client.core.util.Logger
 import okhttp3.ConnectionPool
 import okhttp3.Headers
 import okhttp3.OkHttpClient
