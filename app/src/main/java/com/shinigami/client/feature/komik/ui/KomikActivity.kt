@@ -40,6 +40,7 @@ import com.shinigami.client.core.webview.ErudaConsole
 import com.shinigami.client.core.webview.RequestInterceptor
 import com.shinigami.client.core.webview.WebExtension
 import com.shinigami.client.ui.PopupHost
+import org.json.JSONObject
 import java.lang.ref.WeakReference
 
 class KomikActivity :
@@ -186,19 +187,61 @@ class KomikActivity :
 
     fun detectImageElement() {
         val webView = mainWebView ?: return
-        if (touchXCoordinate == 0 && touchYCoordinate == 0) return
-
-        val hitTestResult = webView.hitTestResult
-        if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
-            hitTestResult.extra?.let { url -> showContextMenuUrl = url }
-            return
-        }
+        if (touchXCoordinate <= 0 && touchYCoordinate <= 0) return
 
         val javascriptCommand = JAVASCRIPT_IMAGE_DETECTOR.format(touchXCoordinate, touchYCoordinate)
         webView.evaluateJavascript(javascriptCommand) { result ->
-            result?.takeIf { it != "null" && it.length > 2 }
-                ?.removeSurrounding("\"")
-                ?.let { imageUrl -> showContextMenuUrl = imageUrl }
+            val jsonObj = parseJavascriptResult(result)
+            val jsUrl = jsonObj?.optString("url")?.takeIf { it.isNotBlank() && it != "null" }
+
+            if (jsUrl != null) {
+                showContextMenuUrl = jsUrl
+                return@evaluateJavascript
+            }
+
+            val hitTestResult = webView.hitTestResult
+            val hitUrl = if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                hitTestResult.extra?.takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+
+            if (hitUrl != null) {
+                showContextMenuUrl = hitUrl
+                return@evaluateJavascript
+            }
+
+            val diagArray = jsonObj?.optJSONArray("diag")
+            val topElementsStr = if (diagArray != null && diagArray.length() > 0) {
+                (0 until diagArray.length()).mapNotNull { i ->
+                    val item = diagArray.optJSONObject(i) ?: return@mapNotNull null
+                    val tag = item.optString("tag", "unknown")
+                    val cls = item.optString("cls", "").let { if (it.isNotEmpty()) ".$it" else "" }
+                    val pe = item.optString("pe", "unknown")
+                    "$tag$cls(pe:$pe)"
+                }.joinToString(", ")
+            } else {
+                "none"
+            }
+
+            val pageUrl = webView.url ?: "unknown"
+            val logMessage = "No image detected on $pageUrl at ($touchXCoordinate,$touchYCoordinate) | Top elements: [$topElementsStr]".take(500)
+            Logger.d(TAG, logMessage)
+        }
+    }
+
+    private fun parseJavascriptResult(result: String?): JSONObject? {
+        if (result.isNullOrBlank() || result == "null") return null
+        var unescaped = result
+        if (unescaped.startsWith("\"") && unescaped.endsWith("\"")) {
+            try {
+                unescaped = org.json.JSONTokener(unescaped).nextValue() as? String ?: unescaped
+            } catch (_: Exception) {}
+        }
+        return try {
+            JSONObject(unescaped)
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -472,33 +515,175 @@ class KomikActivity :
         private const val PREF_WELCOME_SHOWN = "welcome_dialog_displayed"
 
         private val JAVASCRIPT_IMAGE_DETECTOR = """
-            (function(x, y) {
-                const elements = document.elementsFromPoint(x, y);
-                if (!elements.length) return null;
-                const extractUrl = (node) => {
-                    if (!node) return null;
-                    const tag = node.tagName.toUpperCase();
-                    if (tag === 'IMG') return node.currentSrc || (node.srcset && node.srcset.split(' ')[0]) || node.src || node.dataset.src || node.dataset.lazySrc;
-                    if (tag === 'CANVAS') { try { return node.toDataURL(); } catch (e) { return null; } }
-                    if (tag === 'IMAGE' || tag === 'SVG') return (node.href && node.href.baseVal) || node.getAttribute('xlink:href');
-                    const bgImage = getComputedStyle(node).backgroundImage;
-                    if (bgImage && bgImage !== 'none' && bgImage.startsWith('url(')) {
-                        const match = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
-                        if (match) return match[1];
+            (function(px, py) {
+                var dpr = window.devicePixelRatio || 1;
+                var x = px / dpr;
+                var y = py / dpr;
+                var isImgUrl = function(u) {
+                    if (!u || typeof u !== 'string') return false;
+                    var s = u.trim();
+                    if (!s || s.indexOf('data:image/svg+xml') === 0 || s === 'about:blank') return false;
+                    if (s.indexOf('data:image/') === 0 || s.indexOf('blob:') === 0 || s.indexOf('http://') === 0 || s.indexOf('https://') === 0 || s.indexOf('//') === 0 || s.indexOf('/') === 0) return true;
+                    var clean = s.split('?')[0].split('#')[0].toLowerCase();
+                    var exts = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.avif'];
+                    for (var i = 0; i < exts.length; i++) {
+                        if (clean.endsWith(exts[i])) return true;
+                    }
+                    return false;
+                };
+                var toAbs = function(u) {
+                    if (!u) return null;
+                    try {
+                        return new URL(u, document.baseURI || window.location.href).href;
+                    } catch(e) {
+                        return u;
+                    }
+                };
+                var parseSrcset = function(ss) {
+                    if (!ss || typeof ss !== 'string') return null;
+                    var parts = ss.split(',');
+                    for (var i = 0; i < parts.length; i++) {
+                        var item = parts[i].trim().split(/\s+/)[0];
+                        if (isImgUrl(item)) return toAbs(item);
                     }
                     return null;
                 };
-                for (let i = 0; i < elements.length; i++) {
-                    const url = extractUrl(elements[i]);
-                    if (url) return url;
+                var extractFromNode = function(node) {
+                    if (!node || node.nodeType !== 1) return null;
+                    var tag = node.tagName ? node.tagName.toUpperCase() : '';
+                    if (tag === 'IMG') {
+                        if (isImgUrl(node.currentSrc)) return toAbs(node.currentSrc);
+                        var ss = parseSrcset(node.srcset || node.getAttribute('srcset'));
+                        if (ss) return ss;
+                        if (isImgUrl(node.src)) return toAbs(node.src);
+                    }
+                    if (tag === 'SOURCE') {
+                        var ssS = parseSrcset(node.srcset || node.getAttribute('srcset'));
+                        if (ssS) return ssS;
+                        var sS = node.src || node.getAttribute('src');
+                        if (isImgUrl(sS)) return toAbs(sS);
+                    }
+                    if (tag === 'PICTURE') {
+                        var sources = node.querySelectorAll('source, img');
+                        for (var i = 0; i < sources.length; i++) {
+                            var u = extractFromNode(sources[i]);
+                            if (u) return u;
+                        }
+                    }
+                    if (tag === 'CANVAS') {
+                        try {
+                            var du = node.toDataURL();
+                            if (isImgUrl(du)) return du;
+                        } catch(e) {}
+                    }
+                    if (tag === 'SVG' || tag === 'IMAGE' || tag === 'USE') {
+                        var href = (node.href && node.href.baseVal) || node.getAttribute('href') || node.getAttribute('xlink:href') || node.getAttribute('src');
+                        if (isImgUrl(href)) return toAbs(href);
+                    }
+                    var dataAttrs = ['data-src', 'data-lazy-src', 'data-original', 'data-srcset', 'data-url', 'data-fallback', 'data-full-src', 'data-lazy', 'data-bg'];
+                    for (var j = 0; j < dataAttrs.length; j++) {
+                        var val = node.getAttribute(dataAttrs[j]);
+                        if (val) {
+                            var parsedSs = parseSrcset(val);
+                            if (parsedSs) return parsedSs;
+                            if (isImgUrl(val)) return toAbs(val);
+                        }
+                    }
+                    if (node.attributes) {
+                        for (var k = 0; k < node.attributes.length; k++) {
+                            var attr = node.attributes[k];
+                            if (attr && attr.name && attr.name.indexOf('data-') === 0 && attr.value) {
+                                if (isImgUrl(attr.value)) return toAbs(attr.value);
+                            }
+                        }
+                    }
+                    var checkBg = function(styleObj) {
+                        if (!styleObj) return null;
+                        var bg = styleObj.backgroundImage;
+                        if (bg && bg !== 'none') {
+                            var m = bg.match(/url\(['"]?([^'"]+)['"]?\)/i);
+                            if (m && m[1] && isImgUrl(m[1])) return toAbs(m[1]);
+                        }
+                        return null;
+                    };
+                    try {
+                        var cs = getComputedStyle(node);
+                        var bgU = checkBg(cs);
+                        if (bgU) return bgU;
+                        var beforeU = checkBg(getComputedStyle(node, '::before'));
+                        if (beforeU) return beforeU;
+                        var afterU = checkBg(getComputedStyle(node, '::after'));
+                        if (afterU) return afterU;
+                    } catch(e) {}
+                    return null;
+                };
+                var inspectElementAndTree = function(el) {
+                    if (!el) return null;
+                    var direct = extractFromNode(el);
+                    if (direct) return direct;
+                    var childImgs = el.querySelectorAll('img, picture, source, svg, image, canvas');
+                    for (var i = 0; i < childImgs.length; i++) {
+                        var cu = extractFromNode(childImgs[i]);
+                        if (cu) return cu;
+                    }
+                    var curr = el.parentElement;
+                    for (var p = 0; p < 5 && curr; p++) {
+                        var pu = extractFromNode(curr);
+                        if (pu) return pu;
+                        curr = curr.parentElement;
+                    }
+                    return null;
+                };
+                var rawElements = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+                if (!rawElements.length && document.elementFromPoint) {
+                    var topEl = document.elementFromPoint(x, y);
+                    if (topEl) rawElements = [topEl];
                 }
-                let parent = elements[0];
-                for (let d = 0; d < 5 && parent; d++) {
-                    const url = extractUrl(parent);
-                    if (url) return url;
-                    parent = parent.parentElement;
+                var elements = [];
+                for (var i = 0; i < rawElements.length; i++) {
+                    var el = rawElements[i];
+                    elements.push(el);
+                    if (el.shadowRoot && el.shadowRoot.elementsFromPoint) {
+                        try {
+                            var sEls = el.shadowRoot.elementsFromPoint(x, y);
+                            for (var s = 0; s < sEls.length; s++) elements.push(sEls[s]);
+                        } catch(e) {}
+                    }
+                    if ((el.tagName === 'IFRAME' || el.tagName === 'FRAME') && el.contentDocument) {
+                        try {
+                            var rect = el.getBoundingClientRect();
+                            var ix = x - rect.left;
+                            var iy = y - rect.top;
+                            if (el.contentDocument.elementsFromPoint) {
+                                var ifEls = el.contentDocument.elementsFromPoint(ix, iy);
+                                for (var f = 0; f < ifEls.length; f++) elements.push(ifEls[f]);
+                            }
+                        } catch(e) {}
+                    }
                 }
-                return null;
+                for (var j = 0; j < elements.length; j++) {
+                    var foundUrl = inspectElementAndTree(elements[j]);
+                    if (foundUrl) {
+                        return JSON.stringify({ url: foundUrl });
+                    }
+                }
+                var diag = [];
+                for (var k = 0; k < Math.min(3, rawElements.length); k++) {
+                    var item = rawElements[k];
+                    var tag = item.tagName ? item.tagName.toLowerCase() : 'unknown';
+                    var cls = '';
+                    if (typeof item.className === 'string') {
+                        cls = item.className.trim().replace(/\s+/g, '.');
+                    } else if (item.getAttribute) {
+                        cls = (item.getAttribute('class') || '').trim().replace(/\s+/g, '.');
+                    }
+                    var pe = 'unknown';
+                    try {
+                        pe = getComputedStyle(item).pointerEvents || 'unknown';
+                    } catch(e) {}
+                    diag.push({ tag: tag, cls: cls, pe: pe });
+                }
+                return JSON.stringify({ url: null, diag: diag });
             })(%d, %d);
         """.trimIndent().replace("\n", "").replace(Regex("\\s+"), " ")
     }
