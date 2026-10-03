@@ -10,11 +10,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -124,6 +127,7 @@ fun KomikScreen(
                     )
 
                     swipeRefresh.setOnRefreshListener {
+                        webExtension.clearCache()
                         webView.reload()
                     }
 
@@ -169,24 +173,24 @@ fun KomikScreen(
                     LinearProgressIndicator(
                         progress = { uiState.loadingProgress / 100f },
                         modifier = Modifier
-                            .fillMaxWidth(0.5f)
+                            .fillMaxWidth()
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 48.dp)
+                            .windowInsetsPadding(WindowInsets.navigationBars)
                             .height(3.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
-                        strokeCap = StrokeCap.Round,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.2f),
+                        strokeCap = StrokeCap.Butt,
                     )
                 } else {
                     LinearProgressIndicator(
                         modifier = Modifier
-                            .fillMaxWidth(0.5f)
+                            .fillMaxWidth()
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 48.dp)
+                            .windowInsetsPadding(WindowInsets.navigationBars)
                             .height(3.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
-                        strokeCap = StrokeCap.Round,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.2f),
+                        strokeCap = StrokeCap.Butt,
                     )
                 }
             }

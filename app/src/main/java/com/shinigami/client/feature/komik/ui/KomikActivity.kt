@@ -44,7 +44,7 @@ class KomikActivity :
     PopupHost {
 
     val viewModel: KomikViewModel by viewModels()
-    val webExtension by lazy { WebExtension() }
+    val webExtension by lazy { WebExtension(cacheDir) }
 
     var mainWebView: WebView? = null
     var popupWebView by mutableStateOf<WebView?>(null)
