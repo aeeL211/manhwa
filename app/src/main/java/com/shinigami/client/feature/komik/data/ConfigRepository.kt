@@ -28,7 +28,7 @@ class ConfigRepository(private val prefs: SharedPreferences) {
                 .build()
 
             WebExtension.sharedHttpClient.newCall(request).execute().use { response ->
-                response.body.string().trim().takeIf { it.startsWith("http") }
+                response.body?.string()?.trim()?.takeIf { it.startsWith("http") }
             }
         } catch (e: Exception) {
             Logger.w(TAG, "Network fetch failed: ${e.localizedMessage}")
