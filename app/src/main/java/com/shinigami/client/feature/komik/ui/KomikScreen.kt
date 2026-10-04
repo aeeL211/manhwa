@@ -140,6 +140,12 @@ fun KomikScreen(
                     val targetUrl = uiState.url
                     if (targetUrl != null) {
                         if (webView.url == null) {
+                            if (com.shinigami.client.core.util.AppConfig.DEBUG) {
+                                com.shinigami.client.core.util.Logger.d(
+                                    "KomikScreen",
+                                    "[${System.currentTimeMillis()}] first_load_url: url=$targetUrl"
+                                )
+                            }
                             webView.loadUrl(targetUrl, viewModel.defaultHeaders)
                         } else if (uiState.shouldReload) {
                             viewModel.onReloadHandled()
@@ -192,7 +198,7 @@ fun KomikScreen(
                     contentScale = ContentScale.Fit,
                 )
 
-                if (uiState.loadingProgress > 0) {
+                if (uiState.isConnected) {
                     LinearProgressIndicator(
                         progress = { uiState.loadingProgress / 100f },
                         modifier = Modifier
