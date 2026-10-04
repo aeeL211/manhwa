@@ -25,14 +25,15 @@ object Logger {
     private val logChannel = Channel<String>(capacity = 1000, onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var file: File? = null
-    private var writer: BufferedWriter? = null
+    @Volatile private var file: File? = null
+    @Volatile private var writer: BufferedWriter? = null
 
     @Volatile private var isReady = false
+    @Volatile private var isInitializing = false
 
     fun init(context: Context) {
-        if (isReady) return
-        if (!AppConfig.ENABLE_LOGGER && !AppConfig.ENABLE_CRASH_LOG) return
+        if (isReady || isInitializing) return
+        isInitializing = true
 
         val appContext = context.applicationContext
         scope.launch {
@@ -41,28 +42,31 @@ object Logger {
     }
 
     private fun initInternal(context: Context) {
-        if (isReady) return
         try {
             val root = context.getExternalFilesDir(null) ?: context.filesDir
             val dir = File(root, LOG_DIR).apply { if (!exists()) mkdirs() }
 
             val dateStr = dateFormat.format(Date())
-            file = File(dir, "shngm-log_$dateStr.txt")
+            val targetFile = File(dir, "shngm-log_$dateStr.txt")
+            file = targetFile
             cleanOldLogs(dir)
 
-            writer = BufferedWriter(FileWriter(file, true))
+            val isNewFile = !targetFile.exists() || targetFile.length() == 0L
+            writer = BufferedWriter(FileWriter(targetFile, true))
 
-            if (file?.length() == 0L) {
-                writeDirectly("=== Shinigami v${AppConfig.VERSION_NAME} ===\n")
+            if (isNewFile) {
+                writeDirectlyInternal("=== Shinigami v${AppConfig.VERSION_NAME} ===\n")
             }
 
             isReady = true
+            isInitializing = false
             if (AppConfig.DEBUG) {
-                Log.i(TAG, "Logger initialized at: ${file?.absolutePath}")
+                Log.i(TAG, "Logger initialized at: ${targetFile.absolutePath}")
             }
 
             startLogConsumer()
         } catch (e: Exception) {
+            isInitializing = false
             Log.e(TAG, "Initialization failed", e)
         }
     }
@@ -71,7 +75,6 @@ object Logger {
         scope.launch {
             for (msg in logChannel) {
                 writeDirectly(msg)
-                writer?.flush()
                 checkLogRotation()
             }
         }
@@ -99,7 +102,6 @@ object Logger {
 
     private fun log(level: String, tag: String, msg: String) {
         val isErrorOrWarning = level == "E" || level == "W"
-        if (!isErrorOrWarning && !AppConfig.ENABLE_LOGGER) return
 
         when (level) {
             "V" -> if (AppConfig.ENABLE_LOGGER) Log.v(tag, msg)
@@ -109,14 +111,13 @@ object Logger {
             "E" -> Log.e(tag, msg)
         }
 
-        if (isReady && (AppConfig.ENABLE_LOGGER || isErrorOrWarning)) {
+        if (AppConfig.ENABLE_LOGGER || isErrorOrWarning) {
             val time = timeFormat.format(Date())
             logChannel.trySend("$time [$level] $tag: $msg\n")
         }
     }
 
     private fun logErrorTrace(err: Throwable) {
-        if (!isReady) return
         val builder = StringBuilder().apply {
             append("  ↳ ${err.javaClass.simpleName}: ${err.message}\n")
             err.stackTrace.take(5).forEach { append("  at $it\n") }
@@ -132,7 +133,7 @@ object Logger {
             err.stackTrace.take(15).forEach { append("║   $it\n") }
             append("╚═════════════════════════════════════════════════════════╝\n")
         }
-        logChannel.trySend(crash)
+        writeDirectly(crash)
     }
 
     fun logNetwork(method: String, url: String, code: Int, timeMs: Long) {
@@ -140,29 +141,57 @@ object Logger {
         d("Network", "$method $url → $code (${timeMs}ms)")
     }
 
+    @Synchronized
     private fun writeDirectly(text: String) {
+        writeDirectlyInternal(text)
+    }
+
+    private fun writeDirectlyInternal(text: String) {
         try {
+            if (writer == null && file != null) {
+                writer = BufferedWriter(FileWriter(file!!, true))
+            }
             writer?.write(text)
+            writer?.flush()
         } catch (e: Exception) {
             Log.e(TAG, "Write failed", e)
+            try {
+                writer?.close()
+            } catch (_: Exception) {}
+            writer = null
+            try {
+                if (file != null) {
+                    writer = BufferedWriter(FileWriter(file!!, true))
+                    writer?.write(text)
+                    writer?.flush()
+                }
+            } catch (e2: Exception) {
+                Log.e(TAG, "Reopen writer failed", e2)
+                writer = null
+            }
         }
     }
 
+    @Synchronized
     private fun checkLogRotation() {
         val f = file ?: return
         if (f.length() > AppConfig.MAX_LOG_FILE_SIZE) {
             val backup = File(f.parent, "${f.nameWithoutExtension}_${System.currentTimeMillis()}.txt")
             try {
+                writer?.flush()
                 writer?.close()
             } catch (_: Exception) {}
+            writer = null
             if (f.renameTo(backup)) {
                 file = File(f.parent, f.name)
             }
             try {
                 writer = BufferedWriter(FileWriter(file ?: f, true))
-                writeDirectly("=== Rotated from ${backup.name} ===\n")
+                writeDirectlyInternal("=== Rotated from ${backup.name} ===\n")
+                f.parentFile?.let { cleanOldLogs(it) }
             } catch (e: Exception) {
                 Log.e(TAG, "Rotation failed", e)
+                writer = null
             }
         }
     }
