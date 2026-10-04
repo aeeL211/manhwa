@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.shinigami.client.core.network.NetworkMonitor
+import com.shinigami.client.core.util.AppConfig
+import com.shinigami.client.core.util.Logger
 import com.shinigami.client.feature.komik.data.ConfigRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,17 +49,20 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                     if (currentUrl == null) {
                         val cachedUrl = configRepository.getCachedUrlIfPresent()
                         if (cachedUrl != null) {
+                            if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: instant load starting with cached URL: $cachedUrl")
                             _uiState.update { currentState ->
                                 currentState.copy(url = cachedUrl)
                             }
                             fetchRemoteConfigInBackground(cachedUrl)
                         } else {
+                            if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: no cached URL, fetching remote config first")
                             val remoteUrl = configRepository.getUrl()
                             _uiState.update { currentState ->
                                 currentState.copy(url = remoteUrl)
                             }
                         }
                     } else if (!wasConnected && _uiState.value.isSplashVisible) {
+                        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: network restored while splash visible, reloading")
                         _uiState.update { currentState ->
                             currentState.copy(shouldReload = true)
                         }
@@ -71,6 +76,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 } else {
+                    if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: network lost, cancelling timeouts")
                     cancelAllTimeouts()
                 }
             }
@@ -85,10 +91,15 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
             if (remoteUrl != null) {
                 configRepository.saveCachedUrl(remoteUrl)
                 if (remoteUrl != cachedUrl) {
-                    if (!isPageFinishedLoading || _uiState.value.isSplashVisible) {
+                    if (!isPageFinishedLoading && _uiState.value.isSplashVisible) {
+                        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: background config update from $cachedUrl to $remoteUrl")
+                        isPageFinishedLoading = false
                         _uiState.update { currentState ->
                             currentState.copy(url = remoteUrl, shouldReload = true)
                         }
+                        startHangTimeoutTimer()
+                    } else {
+                        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: remote URL updated ($remoteUrl), saved for next launch")
                     }
                 }
             }
@@ -103,6 +114,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun cancelAllTimeouts() {
+        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: cancelAllTimeouts called")
         hangTimeoutJob?.cancel()
         hangTimeoutJob = null
         delayDismissJob?.cancel()
@@ -111,10 +123,12 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startHangTimeoutTimer() {
         if (!isConnectedToNetwork) return
+        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: starting hang timeout timer (20s)")
         hangTimeoutJob?.cancel()
         hangTimeoutJob = viewModelScope.launch {
             delay(20000L)
             if (isConnectedToNetwork && _uiState.value.isSplashVisible) {
+                if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: hang timeout (20s) reached, dismissing splash")
                 dismissSplashInternal()
             }
         }
@@ -122,10 +136,12 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startDelayDismissTimer() {
         if (!isConnectedToNetwork) return
+        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: starting delay dismiss timer (3s)")
         delayDismissJob?.cancel()
         delayDismissJob = viewModelScope.launch {
             delay(3000L)
             if (isConnectedToNetwork && _uiState.value.isSplashVisible) {
+                if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: delay dismiss timer (3s) completed, dismissing splash")
                 dismissSplashInternal()
             }
         }
@@ -142,6 +158,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onPageFinished() {
         if (!isConnectedToNetwork) return
+        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: onPageFinished called (isSplashVisible=${_uiState.value.isSplashVisible})")
         isPageFinishedLoading = true
         hangTimeoutJob?.cancel()
         hangTimeoutJob = null
@@ -155,6 +172,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun dismissSplashInternal() {
+        if (AppConfig.DEBUG) Logger.d(TAG, "Splash transition: dismissSplashInternal called, hiding splash overlay")
         cancelAllTimeouts()
         _uiState.update { currentState ->
             currentState.copy(
@@ -162,5 +180,9 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                 isSplashVisible = false,
             )
         }
+    }
+
+    companion object {
+        private const val TAG = "KomikViewModel"
     }
 }
