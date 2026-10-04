@@ -1,13 +1,15 @@
 package com.shinigami.client.core.util
 
+import com.shinigami.client.BuildConfig
+
 object AppConfig {
-    const val DEBUG = true
+    val DEBUG = BuildConfig.DEBUG
     const val ENABLE_ERUDA = false
 
-    const val ENABLE_LOGGER = DEBUG
-    const val ENABLE_CRASH_LOG = DEBUG
-    const val ENABLE_NETWORK_LOG = DEBUG
-    const val ENABLE_WEBVIEW_DEBUG = DEBUG
+    val ENABLE_LOGGER = DEBUG
+    const val ENABLE_CRASH_LOG = true
+    val ENABLE_NETWORK_LOG = DEBUG
+    val ENABLE_WEBVIEW_DEBUG = DEBUG
 
     const val MAX_LOG_FILE_SIZE = 5 * 1024 * 1024L
     const val MAX_LOG_FILES = 3

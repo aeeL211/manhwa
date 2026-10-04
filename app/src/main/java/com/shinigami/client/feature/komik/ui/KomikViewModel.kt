@@ -29,6 +29,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
 
     private var isConnectedToNetwork: Boolean = false
     private var isPageFinishedLoading: Boolean = false
+    private var isConfigFetching: Boolean = false
     private var hangTimeoutJob: Job? = null
     private var delayDismissJob: Job? = null
 
@@ -44,9 +45,17 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                 if (isConnected) {
                     val currentUrl = _uiState.value.url
                     if (currentUrl == null) {
-                        val remoteUrl = configRepository.getUrl()
-                        _uiState.update { currentState ->
-                            currentState.copy(url = remoteUrl)
+                        val cachedUrl = configRepository.getCachedUrlIfPresent()
+                        if (cachedUrl != null) {
+                            _uiState.update { currentState ->
+                                currentState.copy(url = cachedUrl)
+                            }
+                            fetchRemoteConfigInBackground(cachedUrl)
+                        } else {
+                            val remoteUrl = configRepository.getUrl()
+                            _uiState.update { currentState ->
+                                currentState.copy(url = remoteUrl)
+                            }
                         }
                     } else if (!wasConnected && _uiState.value.isSplashVisible) {
                         _uiState.update { currentState ->
@@ -65,6 +74,25 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                     cancelAllTimeouts()
                 }
             }
+        }
+    }
+
+    private fun fetchRemoteConfigInBackground(cachedUrl: String) {
+        if (isConfigFetching) return
+        isConfigFetching = true
+        viewModelScope.launch {
+            val remoteUrl = configRepository.fetchRemoteUrl()
+            if (remoteUrl != null) {
+                configRepository.saveCachedUrl(remoteUrl)
+                if (remoteUrl != cachedUrl) {
+                    if (!isPageFinishedLoading || _uiState.value.isSplashVisible) {
+                        _uiState.update { currentState ->
+                            currentState.copy(url = remoteUrl, shouldReload = true)
+                        }
+                    }
+                }
+            }
+            isConfigFetching = false
         }
     }
 

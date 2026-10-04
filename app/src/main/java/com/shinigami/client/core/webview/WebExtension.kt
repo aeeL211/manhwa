@@ -31,6 +31,7 @@ class WebExtension(cacheDir: File) {
         .build()
 
     private val cookieHashes = ConcurrentHashMap<String, String>()
+    private val rawCookies = ConcurrentHashMap<String, String>()
 
     private val skippedHeaders = setOf(
         "host",
@@ -93,6 +94,13 @@ class WebExtension(cacheDir: File) {
         val host = try { Uri.parse(url).host } catch (e: Exception) { null } ?: return
         if (allowedHosts.none { host == it || host.endsWith(".$it") }) return
         val cookieString = CookieManager.getInstance().getCookie(url).orEmpty()
+
+        val lastRawCookie = rawCookies[host]
+        if (lastRawCookie == cookieString) {
+            return
+        }
+        rawCookies[host] = cookieString
+
         val newHash = hashString(cookieString)
         val oldHash = cookieHashes[host]
         if (oldHash != null && oldHash != newHash) {
@@ -140,9 +148,13 @@ class WebExtension(cacheDir: File) {
                 val contentType = response.header("Content-Type")
                 if (contentType?.contains("html", ignoreCase = true) != true) return null
 
-                val htmlContent = response.body?.string() ?: return null
+                val htmlContent = response.body.string()
 
-                val patchedContent = htmlContent.replace("is_premium:false", "is_premium:true")
+                val patchedContent = if (htmlContent.contains("is_premium:false")) {
+                    htmlContent.replace("is_premium:false", "is_premium:true")
+                } else {
+                    htmlContent
+                }
 
                 val cacheControl = response.header("Cache-Control")
 
@@ -172,6 +184,7 @@ class WebExtension(cacheDir: File) {
             val host = try { Uri.parse(url).host } catch (e: Exception) { null }
             if (host != null) {
                 val updatedCookieString = cookieManager.getCookie(url).orEmpty()
+                rawCookies[host] = updatedCookieString
                 cookieHashes[host] = hashString(updatedCookieString)
             }
         }
@@ -185,6 +198,7 @@ class WebExtension(cacheDir: File) {
             Logger.e(TAG, "Failed to evict htmlCache in clearCache()", e)
         }
         cookieHashes.clear()
+        rawCookies.clear()
     }
 
     fun destroy() {

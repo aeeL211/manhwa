@@ -134,17 +134,21 @@ fun KomikScreen(
             },
             update = { swipeRefresh ->
                 swipeRefresh.isRefreshing = uiState.isLoading && !uiState.isSplashVisible
-                val webView = (0 until swipeRefresh.childCount)
-                    .map { swipeRefresh.getChildAt(it) }
-                    .filterIsInstance<WebView>()
-                    .firstOrNull() ?: mainWebViewState
+                val webView = mainWebViewState ?: (swipeRefresh.getChildAt(0) as? WebView)
 
                 if (webView != null) {
-                    if (uiState.url != null && webView.url == null) {
-                        webView.loadUrl(uiState.url!!, viewModel.defaultHeaders)
-                    } else if (uiState.shouldReload) {
-                        viewModel.onReloadHandled()
-                        webView.reload()
+                    val targetUrl = uiState.url
+                    if (targetUrl != null) {
+                        if (webView.url == null) {
+                            webView.loadUrl(targetUrl, viewModel.defaultHeaders)
+                        } else if (uiState.shouldReload) {
+                            viewModel.onReloadHandled()
+                            if (webView.url != targetUrl) {
+                                webView.loadUrl(targetUrl, viewModel.defaultHeaders)
+                            } else {
+                                webView.reload()
+                            }
+                        }
                     }
                 }
             },

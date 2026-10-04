@@ -15,29 +15,38 @@ class ConfigRepository(private val prefs: SharedPreferences) {
         private const val KEY_URL = "remote_url"
     }
 
-    suspend fun getUrl(): String = withContext(Dispatchers.IO) {
+    fun getCachedUrlIfPresent(): String? = prefs.getString(KEY_URL, null)
+
+    fun saveCachedUrl(url: String) {
+        prefs.edit().putString(KEY_URL, url).apply()
+    }
+
+    suspend fun fetchRemoteUrl(): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
                 .url(AppConfig.CONFIG_URL)
                 .build()
 
-            val fetchedUrl = WebExtension.sharedHttpClient.newCall(request).execute().use { response ->
-                response.body?.string()?.trim()?.takeIf { it.startsWith("http") }
-            }
-
-            if (fetchedUrl != null) {
-                Logger.i(TAG, "Fetched remote url: $fetchedUrl")
-                prefs.edit().putString(KEY_URL, fetchedUrl).apply()
-                fetchedUrl
-            } else {
-                Logger.w(TAG, "Empty or invalid response from config URL, falling back to cache")
-                getCachedUrl()
+            WebExtension.sharedHttpClient.newCall(request).execute().use { response ->
+                response.body.string().trim().takeIf { it.startsWith("http") }
             }
         } catch (e: Exception) {
             Logger.w(TAG, "Network fetch failed: ${e.localizedMessage}")
+            null
+        }
+    }
+
+    suspend fun getUrl(): String = withContext(Dispatchers.IO) {
+        val fetchedUrl = fetchRemoteUrl()
+        if (fetchedUrl != null) {
+            Logger.i(TAG, "Fetched remote url: $fetchedUrl")
+            saveCachedUrl(fetchedUrl)
+            fetchedUrl
+        } else {
+            Logger.w(TAG, "Empty or invalid response from config URL, falling back to cache")
             getCachedUrl()
         }
     }
 
-    private fun getCachedUrl(): String = prefs.getString(KEY_URL, AppConfig.BASE_URL) ?: AppConfig.BASE_URL
+    fun getCachedUrl(): String = prefs.getString(KEY_URL, AppConfig.BASE_URL) ?: AppConfig.BASE_URL
 }

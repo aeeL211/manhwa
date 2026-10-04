@@ -31,8 +31,17 @@ object Logger {
     @Volatile private var isReady = false
 
     fun init(context: Context) {
-        if (!AppConfig.ENABLE_LOGGER || isReady) return
+        if (isReady) return
+        if (!AppConfig.ENABLE_LOGGER && !AppConfig.ENABLE_CRASH_LOG) return
 
+        val appContext = context.applicationContext
+        scope.launch {
+            initInternal(appContext)
+        }
+    }
+
+    private fun initInternal(context: Context) {
+        if (isReady) return
         try {
             val root = context.getExternalFilesDir(null) ?: context.filesDir
             val dir = File(root, LOG_DIR).apply { if (!exists()) mkdirs() }
@@ -48,7 +57,9 @@ object Logger {
             }
 
             isReady = true
-            Log.i(TAG, "Logger initialized at: ${file?.absolutePath}")
+            if (AppConfig.DEBUG) {
+                Log.i(TAG, "Logger initialized at: ${file?.absolutePath}")
+            }
 
             startLogConsumer()
         } catch (e: Exception) {
@@ -87,17 +98,18 @@ object Logger {
     }
 
     private fun log(level: String, tag: String, msg: String) {
-        if (!AppConfig.ENABLE_LOGGER) return
+        val isErrorOrWarning = level == "E" || level == "W"
+        if (!isErrorOrWarning && !AppConfig.ENABLE_LOGGER) return
 
         when (level) {
-            "V" -> Log.v(tag, msg)
-            "D" -> Log.d(tag, msg)
-            "I" -> Log.i(tag, msg)
+            "V" -> if (AppConfig.ENABLE_LOGGER) Log.v(tag, msg)
+            "D" -> if (AppConfig.ENABLE_LOGGER) Log.d(tag, msg)
+            "I" -> if (AppConfig.ENABLE_LOGGER) Log.i(tag, msg)
             "W" -> Log.w(tag, msg)
             "E" -> Log.e(tag, msg)
         }
 
-        if (isReady) {
+        if (isReady && (AppConfig.ENABLE_LOGGER || isErrorOrWarning)) {
             val time = timeFormat.format(Date())
             logChannel.trySend("$time [$level] $tag: $msg\n")
         }
