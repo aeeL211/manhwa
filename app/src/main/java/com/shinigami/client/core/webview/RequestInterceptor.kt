@@ -4,10 +4,12 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import java.io.ByteArrayInputStream
 
+import java.nio.charset.StandardCharsets
+
 object RequestInterceptor {
 
     private const val ANNOUNCEMENT_ID = "8dfa0456-9c8a-4f0e-a1de-5153a26e13e5"
-    private val EMPTY_INPUT_STREAM = ByteArrayInputStream(ByteArray(0))
+    private val EMPTY_BYTES = ByteArray(0)
 
     private val ANNOUNCEMENT_CONTENT = """
 Selamat datang! 👋
@@ -40,6 +42,9 @@ server tidak ikut terbuka.
     private val ANNOUNCEMENT_DETAIL_JSON = """{"retcode":0,"message":"success","data":$ANNOUNCEMENT_ITEM}"""
     private val ANNOUNCEMENT_LIST_JSON = """{"retcode":0,"message":"success","meta":{"page":1,"page_size":10,"total_page":1,"total_record":1},"data":[$ANNOUNCEMENT_ITEM]}"""
 
+    private val ANNOUNCEMENT_DETAIL_BYTES = ANNOUNCEMENT_DETAIL_JSON.toByteArray(StandardCharsets.UTF_8)
+    private val ANNOUNCEMENT_LIST_BYTES = ANNOUNCEMENT_LIST_JSON.toByteArray(StandardCharsets.UTF_8)
+
     fun interceptBlockedRequest(request: WebResourceRequest): WebResourceResponse? {
         val url = request.url
         val host = url.host.orEmpty()
@@ -53,20 +58,20 @@ server tidak ikut terbuka.
             host == "api.shngm.io" && path.startsWith("/v1/announcement") -> announcementResponse(request, path)
             host.contains("googletagmanager") -> {
                 val mimeType = if (path.endsWith(".js")) "application/javascript" else "text/plain"
-                WebResourceResponse(mimeType, "utf-8", EMPTY_INPUT_STREAM)
+                WebResourceResponse(mimeType, "utf-8", ByteArrayInputStream(EMPTY_BYTES))
             }
-            host.endsWith("novu.my") -> WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+            host.endsWith("novu.my") -> WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(EMPTY_BYTES))
             else -> null
         }
     }
 
     private fun announcementResponse(request: WebResourceRequest, path: String): WebResourceResponse = when {
-        !path.contains("/detail/") -> jsonResponse(request, ANNOUNCEMENT_LIST_JSON)
-        path.endsWith(ANNOUNCEMENT_ID) -> jsonResponse(request, ANNOUNCEMENT_DETAIL_JSON)
-        else -> WebResourceResponse("text/plain", "utf-8", EMPTY_INPUT_STREAM)
+        !path.contains("/detail/") -> jsonResponse(request, ANNOUNCEMENT_LIST_BYTES)
+        path.endsWith(ANNOUNCEMENT_ID) -> jsonResponse(request, ANNOUNCEMENT_DETAIL_BYTES)
+        else -> WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(EMPTY_BYTES))
     }
 
-    fun jsonResponse(request: WebResourceRequest, body: String): WebResourceResponse {
+    fun jsonResponse(request: WebResourceRequest, bodyBytes: ByteArray): WebResourceResponse {
         val headers = mapOf(
             "Access-Control-Allow-Origin" to (request.requestHeaders["Origin"] ?: "*"),
             "Access-Control-Allow-Credentials" to "true",
@@ -75,9 +80,13 @@ server tidak ikut terbuka.
         )
 
         return if (request.method == "OPTIONS") {
-            WebResourceResponse("text/plain", "utf-8", 204, "No Content", headers, EMPTY_INPUT_STREAM)
+            WebResourceResponse("text/plain", "utf-8", 204, "No Content", headers, ByteArrayInputStream(EMPTY_BYTES))
         } else {
-            WebResourceResponse("application/json", "utf-8", 200, "OK", headers, ByteArrayInputStream(body.toByteArray()))
+            WebResourceResponse("application/json", "utf-8", 200, "OK", headers, ByteArrayInputStream(bodyBytes))
         }
+    }
+
+    fun jsonResponse(request: WebResourceRequest, body: String): WebResourceResponse {
+        return jsonResponse(request, body.toByteArray(StandardCharsets.UTF_8))
     }
 }
