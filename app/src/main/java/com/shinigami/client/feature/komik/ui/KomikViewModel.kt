@@ -40,6 +40,7 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
     private var milestone10Logged = false
     private var milestone50Logged = false
     private var milestone100Logged = false
+    private var pageFinishedLogged = false
 
     init {
         if (AppConfig.DEBUG) {
@@ -87,12 +88,12 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
                     if (_uiState.value.isSplashVisible) {
                         if (isPageFinishedLoading) {
                             startDelayDismissTimer()
-                        } else if (hangTimeoutJob == null) {
+                        } else if (hangTimeoutJob == null || hangTimeoutJob?.isActive != true) {
                             startHangTimeoutTimer()
                         }
                     }
                 } else {
-                    if (AppConfig.DEBUG) {
+                    if (AppConfig.DEBUG && _uiState.value.isSplashVisible) {
                         Logger.d(TAG, "[${System.currentTimeMillis()}] splash transition: network lost, cancelling timeouts")
                     }
                     cancelAllTimeouts()
@@ -190,13 +191,17 @@ class KomikViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onPageFinished() {
-        if (!isConnectedToNetwork) return
-        if (AppConfig.DEBUG && !isPageFinishedLoading) {
+        if (AppConfig.DEBUG && !pageFinishedLogged) {
+            pageFinishedLogged = true
             Logger.d(TAG, "[${System.currentTimeMillis()}] on_page_finished: url=${_uiState.value.url}")
         }
         isPageFinishedLoading = true
+
+        if (!isConnectedToNetwork) return
+
         hangTimeoutJob?.cancel()
         hangTimeoutJob = null
+
         if (_uiState.value.isSplashVisible) {
             startDelayDismissTimer()
         } else {

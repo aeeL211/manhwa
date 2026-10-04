@@ -1,7 +1,7 @@
 package com.shinigami.client.feature.komik.ui
 
-import android.view.ViewGroup
 import android.view.MotionEvent
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
@@ -20,10 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -40,11 +42,12 @@ import com.shinigami.client.core.ui.components.ShinigamiConfirmDialog
 import com.shinigami.client.core.ui.components.ShinigamiInfoDialog
 import com.shinigami.client.core.ui.components.ShinigamiPromptDialog
 import com.shinigami.client.core.ui.theme.DarkBackground
-import com.shinigami.client.core.ui.theme.PrimaryAccent
 import com.shinigami.client.core.ui.theme.SplashGradientBottom
 import com.shinigami.client.core.ui.theme.SplashGradientTop
 import com.shinigami.client.core.ui.theme.SplashProgress
 import com.shinigami.client.core.ui.theme.SplashProgressTrack
+import com.shinigami.client.core.util.AppConfig
+import com.shinigami.client.core.util.Logger
 import com.shinigami.client.core.webview.WebExtension
 import java.util.Locale
 
@@ -72,6 +75,7 @@ fun KomikScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var loadedInitialUrl by remember { mutableStateOf<String?>(null) }
 
     val imeBottomDp = (activity.imeBottomPadding / context.resources.displayMetrics.density).dp
 
@@ -139,9 +143,10 @@ fun KomikScreen(
                 if (webView != null) {
                     val targetUrl = uiState.url
                     if (targetUrl != null) {
-                        if (webView.url == null) {
-                            if (com.shinigami.client.core.util.AppConfig.DEBUG) {
-                                com.shinigami.client.core.util.Logger.d(
+                        if (loadedInitialUrl != targetUrl && webView.url == null) {
+                            loadedInitialUrl = targetUrl
+                            if (AppConfig.DEBUG) {
+                                Logger.d(
                                     "KomikScreen",
                                     "[${System.currentTimeMillis()}] first_load_url: url=$targetUrl"
                                 )
@@ -198,7 +203,9 @@ fun KomikScreen(
                     contentScale = ContentScale.Fit,
                 )
 
-                if (uiState.isConnected) {
+                val showDeterminateProgress = uiState.isConnected && uiState.loadingProgress > 0
+                if (showDeterminateProgress) {
+                    // Determinate progress filling from 0% to 100% while online and loading
                     LinearProgressIndicator(
                         progress = { uiState.loadingProgress / 100f },
                         modifier = Modifier
@@ -211,6 +218,7 @@ fun KomikScreen(
                         strokeCap = StrokeCap.Butt,
                     )
                 } else {
+                    // Indeterminate looping animation while offline or before the first progress event
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
